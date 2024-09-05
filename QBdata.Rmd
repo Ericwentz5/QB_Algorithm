@@ -1,0 +1,425 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-06-12"
+---
+
+```{r setup, include=FALSE}
+
+
+library(tidyverse)
+library(rvest)
+library(janitor)
+library(prismatic)
+library(ggrepel)
+
+library(openxlsx)
+library(sqldf)
+library(glue)
+library(tidyverse)
+library(broom)
+library(gt)
+library(webshot)
+
+
+
+library(rvest)
+```
+
+
+
+```{r}
+url <- "https://www.pro-football-reference.com/years/2023/passing.htm"
+
+full_table <- read_html(url, as.data.frame=T, stringsAsFactors = TRUE)
+
+
+nfl23 <- full_table %>%  
+  html_nodes("table") %>% 
+  .[[1]] %>% 
+  html_table(fill=T) 
+```
+
+
+
+```{r}
+passer_data_pfr = read.csv('https://raw.githubusercontent.com/brownalytics/qb_stats/master/pfr_passer_stats.csv')
+
+passer_data_fo = read.csv('https://raw.githubusercontent.com/brownalytics/qb_stats/master/fo_passer_stats.csv')
+
+passer_data_nflscrapr = read.csv('https://raw.githubusercontent.com/brownalytics/qb_stats/master/nflscrapr_passer_stats.csv')
+
+passer_data_airyards = read.csv('https://raw.githubusercontent.com/brownalytics/qb_stats/master/cpoe_airyards.csv')
+
+today_dt = format(Sys.Date(), format = '%Y%m%d')
+
+
+
+passer_data <- passer_data_pfr %>% 
+  mutate(adj_ppr = (td + first_downs)/att
+         ,ns_fd = first_downs-td
+         ,ns_fd_pg = ns_fd/g
+         ,ns_fd_pa = ns_fd/att
+         ,td_int_ratio = td/int)
+
+
+
+lm_cmp_pct = lm(data = passer_data
+                ,win_pct ~ cmp_pct
+                ,method = 'qr')
+summary(lm_cmp_pct)
+```
+
+```{r}
+library("rjson")
+
+
+# Convert JSON file to a data frame.
+saints_data <- as.data.frame(saints)
+
+
+#-----------
+library(tidyr)
+library(dplyr)
+
+# Load required libraries
+if (!requireNamespace("rjson", quietly = TRUE)) {
+  install.packages("rjson")
+}
+library(rjson)
+
+if (!requireNamespace("tibble", quietly = TRUE)) {
+  install.packages("tibble")
+}
+library(tibble)
+
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+library(dplyr)
+
+if (!requireNamespace("purrr", quietly = TRUE)) {
+  install.packages("purrr")
+}
+library(purrr)
+
+# Read the JSON file
+json_data <- fromJSON(file = "~/Desktop/Saints.json")
+
+# Check the structure of the parsed JSON data
+str(json_data)
+
+# Filter the list based on the position "QB"
+filtered_data <- lapply(json_data$players, function(player) {
+  if (is.list(player) && !is.null(player$position) && player$position == "QB") {
+    return(player)
+  } else {
+    return(NULL)
+  }
+})
+
+# Remove NULL entries from the filtered list
+filtered_data <- Filter(Negate(is.null), filtered_data)
+
+# Function to flatten nested lists
+flatten_player_data <- function(player) {
+  # Flatten the nested lists within each player
+  flat_data <- unlist(player, recursive = TRUE, use.names = TRUE)
+  
+  # Convert the names to a more readable format
+  names(flat_data) <- gsub("\\.", "_", names(flat_data))
+  
+  return(as.list(flat_data))
+}
+
+# Apply the flattening function to each player
+flattened_data <- lapply(filtered_data, flatten_player_data)
+
+# Combine the flattened lists into a single data frame
+df <- bind_rows(flattened_data)
+
+# Debugging: Print the resulting data frame to check the output
+print(df)
+
+
+
+
+```
+
+
+
+```{r}
+NFL2023 <- fromJSON(file = "~/Desktop/2023NFL.json")
+
+
+
+teams_df <- data.frame(Game_Number = integer(), Game_ID = character(), Team = character(), stringsAsFactors = FALSE)
+
+# Iterate through the weeks and games
+for (week in NFL2023$weeks) {
+  for (game in week$games) {
+    game_number <- game$home$game_number
+    game_id <- game$id
+    home_team <- game$home$name
+    away_team <- game$away$name
+    
+    teams_df <- rbind(teams_df, data.frame(Game_Number = game_number, Game_ID = game_id, Team = home_team))
+    teams_df <- rbind(teams_df, data.frame(Game_Number = game_number, Game_ID = game_id, Team = away_team))
+  }
+}
+
+# Save the data frame to a CSV file
+
+```
+
+
+
+
+
+```{r}
+testGame <- fromJSON(file = "~/Desktop/game.json")
+
+
+
+home_passing <- testGame$statistics$home$passing$players
+away_passing <- testGame$statistics$away$passing$players
+
+# Convert the lists to data frames
+home_passing_df <- as.data.frame(do.call(rbind, home_passing))
+away_passing_df <- as.data.frame(do.call(rbind, away_passing))
+
+# Filter for position QB
+home_qb_passing <- home_passing_df %>%
+  filter(position == "QB")
+
+away_qb_passing <- away_passing_df %>%
+  filter(position == "QB")
+
+# Combine the data
+qb_passing_stats <- bind_rows(home_qb_passing, away_qb_passing)
+
+
+home_team <- testGame$summary$home$name
+away_team <- testGame$summary$away$name
+home_points <- testGame$summary$home$points
+away_points <- testGame$summary$away$points
+
+if (home_points > away_points) {
+  winner <- home_team
+} else {
+  winner <- away_team
+}
+
+# Extract the week information
+week <- testGame$summary$week$title
+
+# Extract the passing stats for home and away teams
+home_passing <- testGame$statistics$home$passing$players
+away_passing <- testGame$statistics$away$passing$players
+
+# Convert the lists to data frames
+home_passing_df <- as.data.frame(do.call(rbind, home_passing))
+away_passing_df <- as.data.frame(do.call(rbind, away_passing))
+
+# Add team and week information
+home_passing_df$team <- home_team
+home_passing_df$week <- week
+away_passing_df$team <- away_team
+away_passing_df$week <- week
+
+# Filter for position QB
+home_qb_passing <- home_passing_df %>%
+  filter(position == "QB")
+
+away_qb_passing <- away_passing_df %>%
+  filter(position == "QB")
+
+# Combine the data
+qb_passing_stats <- bind_rows(home_qb_passing, away_qb_passing)
+
+# Add a column to indicate if the QB won the game
+qb_passing_stats <- qb_passing_stats %>%
+  mutate(Won = ifelse(team == winner, TRUE, FALSE))
+
+```
+
+
+
+
+
+
+
+```{r}
+# Load necessary libraries
+library(jsonlite)
+library(dplyr)
+
+# Define the folder containing the JSON files
+json_folder <- "path/to/json/folder"
+#output_file <- "path/to/qb_passing_stats_combined.csv"
+
+# Get a list of all JSON files in the folder
+json_files <- list.files(json_folder, pattern = "*.json", full.names = TRUE)
+
+# Initialize an empty data frame to store the combined results
+combined_qb_stats <- data.frame()
+
+# Loop through each JSON file
+for (file in json_files) {
+  
+  # Load the JSON file
+  testGame <- fromJSON(file)
+  
+  # Determine the winning team
+  home_team <- testGame$summary$home$name
+  away_team <- testGame$summary$away$name
+  home_points <- testGame$summary$home$points
+  away_points <- testGame$summary$away$points
+  
+  if (home_points > away_points) {
+    winner <- home_team
+  } else {
+    winner <- away_team
+  }
+  
+  # Extract the week information
+  week <- testGame$summary$week$title
+  
+  # Extract the passing stats for home and away teams
+  home_passing <- testGame$statistics$home$passing$players
+  away_passing <- testGame$statistics$away$passing$players
+  
+  # Convert the lists to data frames
+  home_passing_df <- as.data.frame(do.call(rbind, home_passing))
+  away_passing_df <- as.data.frame(do.call(rbind, away_passing))
+  
+  # Add team and week information
+  home_passing_df$team <- home_team
+  home_passing_df$week <- week
+  away_passing_df$team <- away_team
+  away_passing_df$week <- week
+  
+  # Filter for position QB
+  home_qb_passing <- home_passing_df %>%
+    filter(position == "QB")
+  
+  away_qb_passing <- away_passing_df %>%
+    filter(position == "QB")
+  
+  # Combine the data
+  qb_passing_stats <- bind_rows(home_qb_passing, away_qb_passing)
+  
+  # Add a column to indicate if the QB won the game
+  qb_passing_stats <- qb_passing_stats %>%
+    mutate(Won = ifelse(team == winner, TRUE, FALSE))
+  
+  # Append the data to the combined data frame
+  combined_qb_stats <- bind_rows(combined_qb_stats, qb_passing_stats)
+}
+```
+
+
+```{r}
+teams_df <- teams_df %>%
+  distinct(Game_ID, .keep_all = TRUE)
+
+
+unique_game_ids <- teams_df %>%
+  distinct(Game_ID) %>%
+  pull(Game_ID)
+
+# Format the list of Game_IDs
+formatted_game_ids <- paste(sprintf('"%s"', unique_game_ids), collapse = ", ")
+
+# Print the formatted list
+print(formatted_game_ids)
+```
+
+
+```{r}
+# Load necessary libraries
+
+
+library(httr)
+library(jsonlite)
+library(dplyr)
+
+# Define the API endpoint and your API key
+base_url <- "https://developer.sportradar.com/football/reference/nfl-game-statistics"
+api_key <- "Bni9eiop4Q2knc9uYk2PZ4l3lRaGiGKJ1jBnYvAM"  # Replace with your actual API key
+
+# Define a vector of game IDs
+game_ids <- c("game_id_1", "game_id_2", "game_id_3")  # Replace with actual game IDs
+
+# Initialize an empty data frame to store the combined results
+combined_qb_stats <- data.frame()
+
+# Loop through each game ID
+for (game_id in game_ids) {
+  # Construct the full URL for the API request
+  url <- paste0(base_url, game_id, "/statistics.json?api_key=", api_key)
+
+  # Make the API request and parse the JSON response
+  response <- GET(url)
+  if (status_code(response) == 200) {
+    testGame <- content(response, as = "parsed", type = "application/json")
+
+    # Determine the winning team
+    home_team <- testGame$summary$home$name
+    away_team <- testGame$summary$away$name
+    home_points <- testGame$summary$home$points
+    away_points <- testGame$summary$away$points
+
+    if (home_points > away_points) {
+      winner <- home_team
+    } else {
+      winner <- away_team
+    }
+
+    # Extract the week information
+    week <- testGame$summary$week$title
+
+    # Extract the passing stats for home and away teams
+    home_passing <- testGame$statistics$home$passing$players
+    away_passing <- testGame$statistics$away$passing$players
+
+    # Convert the lists to data frames
+    home_passing_df <- as.data.frame(do.call(rbind, home_passing))
+    away_passing_df <- as.data.frame(do.call(rbind, away_passing))
+
+    # Add team and week information
+    home_passing_df$team <- home_team
+    home_passing_df$week <- week
+    away_passing_df$team <- away_team
+    away_passing_df$week <- week
+
+    # Filter for position QB
+    home_qb_passing <- home_passing_df %>%
+      filter(position == "QB")
+
+    away_qb_passing <- away_passing_df %>%
+      filter(position == "QB")
+
+    # Combine the data
+    qb_passing_stats <- bind_rows(home_qb_passing, away_qb_passing)
+
+    # Add a column to indicate if the QB won the game
+    qb_passing_stats <- qb_passing_stats %>%
+      mutate(Won = ifelse(team == winner, TRUE, FALSE))
+
+    # Append the data to the combined data frame
+    combined_qb_stats <- bind_rows(combined_qb_stats, qb_passing_stats)
+  } else {
+    print(paste("Failed to retrieve data for game ID:", game_id))
+  }
+}
+
+# Save the combined data to a CSV file
+output_file <- "~/Desktop/qb_passing_stats_combined.csv"  # Replace with your desired output file path
+write.csv(combined_qb_stats, output_file, row.names = FALSE)
+
+# View the combined QB passing stats
+print(combined_qb_stats)
+
+```
+
